@@ -1,32 +1,26 @@
 #!/bin/bash
 
-PLUGIN_NAME="rss-feed-post-generator-echo"
-DISABLED_NAME="${PLUGIN_NAME}-disabled"
-BASE_PATH="/home"
-DELAY_MINUTES=5
+### Скрипт для временного отключения плагина и возврата через 5 минут ###
+
+PLUGIN_DIR="/home/*/public_html/wp-content/plugins/rss-feed-post-generator-echo"
+BACKUP_SUFFIX="_disabled_by_script"
 LOG="/var/log/plugin-toggle.log"
 
-echo "[*] $(date) — Запуск скрипта" >> $LOG
+echo "[*] Запуск plugin-toggle: $(date)" >> $LOG
 
-# Отключение плагина
-find $BASE_PATH/*/public_html/wp-content/plugins/ -type d -name "$PLUGIN_NAME" | while read plugin_dir; do
-    parent_dir=$(dirname "$plugin_dir")
-    new_path="${parent_dir}/${DISABLED_NAME}"
-    
-    echo "[-] Отключение плагина в $plugin_dir" | tee -a $LOG
-    mv "$plugin_dir" "$new_path"
+# Найдём и переименуем директорию плагина
+for path in $PLUGIN_DIR; do
+  if [ -d "$path" ]; then
+    new_path="${path}${BACKUP_SUFFIX}"
+    echo "[!] Отключение плагина: $path -> $new_path" | tee -a $LOG
+    mv "$path" "$new_path"
+
+    # Фоновый возврат через 5 минут
+    (sleep 300 && mv "$new_path" "$path" && echo "[✔] Возврат плагина: $new_path -> $path" >> $LOG) &
+  else
+    echo "[-] Плагин не найден по пути: $path" >> $LOG
+  fi
+
 done
 
-echo "[*] Плагин отключён. Ожидаем ${DELAY_MINUTES} минут..." | tee -a $LOG
-sleep "${DELAY_MINUTES}m"
-
-# Включение плагина
-find $BASE_PATH/*/public_html/wp-content/plugins/ -type d -name "$DISABLED_NAME" | while read disabled_dir; do
-    parent_dir=$(dirname "$disabled_dir")
-    original_path="${parent_dir}/${PLUGIN_NAME}"
-
-    echo "[+] Включение плагина обратно: $original_path" | tee -a $LOG
-    mv "$disabled_dir" "$original_path"
-done
-
-echo "[✔] Завершено: $(date)" >> $LOG
+echo "[*] Готово. Лог: $LOG"
